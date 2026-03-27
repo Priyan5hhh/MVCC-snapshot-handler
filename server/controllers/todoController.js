@@ -48,6 +48,39 @@ exports.getTodos = async (req, res) => {
   }
 };
 
+exports.getTodoHistory = async (req, res) => {
+  try {
+    const { todoId } = req.params;
+
+    if (!todoId || typeof todoId !== "string" || todoId.trim().length === 0) {
+      return res.status(400).json({
+        message: "Invalid todoId",
+      });
+    }
+
+    const history = await Todo.find({ todoId: todoId }).sort({ version: 1 }).select(
+      "title content version isLatest createdAt -_id"
+    );
+
+    if (!history || history.length === 0) {
+      console.warn(`History fetch: todoId=${todoId} | versions=0`);
+      return res.status(404).json({
+        message: `No history found for todoId ${todoId}`,
+      });
+    }
+
+    console.log(`History fetch: todoId=${todoId} | versions=${history.length}`);
+
+    res.status(200).json(history);
+  } catch (error) {
+    console.error("Error fetching todo history:", error);
+    res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+};
+
 
 exports.updateTodo = async (req, res) => {
   try {
