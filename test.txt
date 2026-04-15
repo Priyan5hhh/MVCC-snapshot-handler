@@ -1,2 +1,0 @@
-echo "this is a new file"
-chmod +x 777

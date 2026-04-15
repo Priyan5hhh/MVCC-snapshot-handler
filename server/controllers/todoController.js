@@ -81,6 +81,57 @@ exports.getTodoHistory = async (req, res) => {
   }
 };
 
+exports.getTodoSnapshot = async (req, res) => {
+  try {
+    const { todoId } = req.params;
+    const { time } = req.query;
+
+    if (!todoId || typeof todoId !== "string" || todoId.trim().length === 0) {
+      return res.status(400).json({
+        message: "Invalid todoId",
+      });
+    }
+
+    if (!time || typeof time !== "string" || time.trim().length === 0) {
+      return res.status(400).json({
+        message: "Timestamp query parameter is required",
+      });
+    }
+
+    const requestedTime = new Date(time);
+    if (Number.isNaN(requestedTime.getTime())) {
+      return res.status(400).json({
+        message: "Invalid timestamp format. Use ISO format.",
+      });
+    }
+
+    const snapshot = await Todo.findOne({
+      todoId: todoId,
+      createdAt: { $lte: requestedTime },
+    })
+      .sort({ version: -1 })
+      .select("todoId title content version isLatest createdAt -_id");
+
+    if (!snapshot) {
+      console.warn(`Snapshot fetch: todoId=${todoId} | time=${requestedTime.toISOString()} | versions=0`);
+      return res.status(404).json({
+        message: `No snapshot found for todoId ${todoId} before ${requestedTime.toISOString()}`,
+      });
+    }
+
+    console.log(
+      `Snapshot fetch: todoId=${todoId} | time=${requestedTime.toISOString()} | returnedVersion=${snapshot.version}`
+    );
+
+    res.status(200).json(snapshot);
+  } catch (error) {
+    console.error("Error fetching todo snapshot:", error);
+    res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+};
 
 exports.updateTodo = async (req, res) => {
   try {

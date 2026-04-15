@@ -64,6 +64,7 @@ async function runQATests() {
   let passCount = 0;
   let failCount = 0;
   let createdTodoId = null;
+  let createTimestamp = null;
   const updateVersions = [];
 
   try {
@@ -103,6 +104,7 @@ async function runQATests() {
 
       if (createRes.status === 201 && createRes.body.todoId) {
         createdTodoId = createRes.body.todoId;
+        createTimestamp = createRes.body.createdAt;
         log(`  ✓ Todo created successfully`, "green");
         log(`    TodoId: ${createdTodoId}`, "green");
         log(`    Version: ${createRes.body.version}`, "green");
@@ -304,9 +306,120 @@ async function runQATests() {
       failCount++;
     }
 
-    // PHASE 6: Error Handling
+    // PHASE 6: SNAPSHOT VALIDATION
     log("\n═══════════════════════════════════════════════════════════════════", "cyan");
-    log("PHASE 6: ERROR HANDLING VALIDATION", "cyan");
+    log("PHASE 6: SNAPSHOT ENDPOINT VALIDATION", "cyan");
+    log("═══════════════════════════════════════════════════════════════════", "cyan");
+
+    const timestampV1 = createTimestamp;
+    const timestampV2 = updateVersions[0] ? updateVersions[0].createdAt : null;
+    const timestampV3 = updateVersions[1] ? updateVersions[1].createdAt : null;
+    const timestampV4 = updateVersions[2] ? updateVersions[2].createdAt : null;
+
+    const middleBetweenV2AndV3 = timestampV2 && timestampV3 ? new Date((new Date(timestampV2).getTime() + new Date(timestampV3).getTime()) / 2).toISOString() : null;
+    const beforeFirst = new Date(new Date(timestampV1).getTime() - 1).toISOString();
+
+    if (timestampV1) {
+      log("\n[SNAPSHOT 1] Should return version 1 at first createdAt", "blue");
+      try {
+        const snapRes = await makeRequest("GET", `/api/todos/${createdTodoId}/snapshot?time=${encodeURIComponent(timestampV1)}`);
+        if (snapRes.status === 200 && snapRes.body.version === 1) {
+          log(`  ✓ Returned version 1`, "green");
+          passCount++;
+        } else {
+          log(`  ✗ Expected version 1, got ${snapRes.status} / ${snapRes.body.version}`, "red");
+          failCount++;
+        }
+      } catch (err) {
+        log(`  ✗ Error: ${err.message}`, "red");
+        failCount++;
+      }
+    }
+
+    if (timestampV2) {
+      log("\n[SNAPSHOT 2] Should return version 2 at exact second update time", "blue");
+      try {
+        const snapRes = await makeRequest("GET", `/api/todos/${createdTodoId}/snapshot?time=${encodeURIComponent(timestampV2)}`);
+        if (snapRes.status === 200 && snapRes.body.version === 2) {
+          log(`  ✓ Returned version 2`, "green");
+          passCount++;
+        } else {
+          log(`  ✗ Expected version 2, got ${snapRes.status} / ${snapRes.body.version}`, "red");
+          failCount++;
+        }
+      } catch (err) {
+        log(`  ✗ Error: ${err.message}`, "red");
+        failCount++;
+      }
+    }
+
+    if (middleBetweenV2AndV3) {
+      log("\n[SNAPSHOT 3] Should return version 2 for time between v2 and v3", "blue");
+      try {
+        const snapRes = await makeRequest("GET", `/api/todos/${createdTodoId}/snapshot?time=${encodeURIComponent(middleBetweenV2AndV3)}`);
+        if (snapRes.status === 200 && snapRes.body.version === 2) {
+          log(`  ✓ Returned version 2`, "green");
+          passCount++;
+        } else {
+          log(`  ✗ Expected version 2, got ${snapRes.status} / ${snapRes.body.version}`, "red");
+          failCount++;
+        }
+      } catch (err) {
+        log(`  ✗ Error: ${err.message}`, "red");
+        failCount++;
+      }
+    }
+
+    if (timestampV4) {
+      log("\n[SNAPSHOT 4] Should return latest version 4 after final update", "blue");
+      try {
+        const snapRes = await makeRequest("GET", `/api/todos/${createdTodoId}/snapshot?time=${encodeURIComponent(timestampV4)}`);
+        if (snapRes.status === 200 && snapRes.body.version === 4) {
+          log(`  ✓ Returned version 4`, "green");
+          passCount++;
+        } else {
+          log(`  ✗ Expected version 4, got ${snapRes.status} / ${snapRes.body.version}`, "red");
+          failCount++;
+        }
+      } catch (err) {
+        log(`  ✗ Error: ${err.message}`, "red");
+        failCount++;
+      }
+    }
+
+    log("\n[SNAPSHOT 5] Should return 404 for time before creation", "blue");
+    try {
+      const snapRes = await makeRequest("GET", `/api/todos/${createdTodoId}/snapshot?time=${encodeURIComponent(beforeFirst)}`);
+      if (snapRes.status === 404) {
+        log(`  ✓ Correctly returned 404`, "green");
+        passCount++;
+      } else {
+        log(`  ✗ Expected 404, got ${snapRes.status}`, "red");
+        failCount++;
+      }
+    } catch (err) {
+      log(`  ✗ Error: ${err.message}`, "red");
+      failCount++;
+    }
+
+    log("\n[SNAPSHOT 6] Should return 400 for invalid timestamp", "blue");
+    try {
+      const snapRes = await makeRequest("GET", `/api/todos/${createdTodoId}/snapshot?time=not-a-time`);
+      if (snapRes.status === 400) {
+        log(`  ✓ Correctly returned 400`, "green");
+        passCount++;
+      } else {
+        log(`  ✗ Expected 400, got ${snapRes.status}`, "red");
+        failCount++;
+      }
+    } catch (err) {
+      log(`  ✗ Error: ${err.message}`, "red");
+      failCount++;
+    }
+
+    // PHASE 7: Error Handling
+    log("\n═══════════════════════════════════════════════════════════════════", "cyan");
+    log("PHASE 7: ERROR HANDLING VALIDATION", "cyan");
     log("═══════════════════════════════════════════════════════════════════", "cyan");
 
     log("\n[ERROR 404] Update non-existent todo", "blue");
@@ -346,9 +459,9 @@ async function runQATests() {
       failCount++;
     }
 
-    // PHASE 7: MVCC Constraints
+    // PHASE 8: MVCC Constraints
     log("\n═══════════════════════════════════════════════════════════════════", "cyan");
-    log("PHASE 7: MVCC CONSTRAINTS VALIDATION", "cyan");
+    log("PHASE 8: MVCC CONSTRAINTS VALIDATION", "cyan");
     log("═══════════════════════════════════════════════════════════════════", "cyan");
 
     log("\n[CONSTRAINT 1] Verify no overwrites (new documents created)", "blue");
