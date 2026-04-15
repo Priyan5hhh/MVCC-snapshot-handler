@@ -36,7 +36,11 @@ exports.createTodo = async (req, res) => {
 
 exports.getTodos = async (req, res) => {
   try {
-    const latestTodos = await Todo.find({ isLatest: true, isDeleted: false });
+    // Only return latest versions that are not deleted
+    const latestTodos = await Todo.find({ 
+      isLatest: true,
+      isDeleted: { $ne: true }
+    });
 
     res.status(200).json(latestTodos);
   } catch (error) {
@@ -59,7 +63,7 @@ exports.getTodoHistory = async (req, res) => {
     }
 
     const history = await Todo.find({ todoId: todoId }).sort({ version: 1 }).select(
-      "title content version isLatest createdAt -_id"
+      "title content version isLatest isDeleted deletedAt createdAt -_id"
     );
 
     if (!history || history.length === 0) {
@@ -110,7 +114,7 @@ exports.getTodoSnapshot = async (req, res) => {
       createdAt: { $lte: requestedTime },
     })
       .sort({ version: -1 })
-      .select("todoId title content version isLatest createdAt -_id");
+      .select("todoId title content version isLatest isDeleted deletedAt createdAt -_id");
 
     if (!snapshot) {
       console.warn(`Snapshot fetch: todoId=${todoId} | time=${requestedTime.toISOString()} | versions=0`);
@@ -144,9 +148,12 @@ exports.updateTodo = async (req, res) => {
       });
     }
 
+    // ATOMIC OPERATION: Use updateOne with condition to ensure we only update if this is the latest
+    // This prevents race conditions in concurrent updates
     const currentLatest = await Todo.findOne({
       todoId: todoId,
       isLatest: true,
+      isDeleted: { $ne: true }, // Don't update deleted todos
     });
 
     if (!currentLatest) {
@@ -157,17 +164,36 @@ exports.updateTodo = async (req, res) => {
 
     const previousVersion = currentLatest.version;
 
-    currentLatest.isLatest = false;
-    await currentLatest.save();
+    // Atomically mark old version as not latest
+    const updateResult = await Todo.updateOne(
+      {
+        _id: currentLatest._id,
+        todoId: todoId,
+        version: previousVersion,
+        isLatest: true, // ensure this is still the latest
+      },
+      { $set: { isLatest: false } }
+    );
+
+    if (updateResult.modifiedCount === 0) {
+      // Another update may have changed the version, retry logic would go here
+      console.warn(`Update conflict for todoId=${todoId}, retrying...`);
+      // For now, we'll return an error indicating conflict
+      return res.status(409).json({
+        message: "Concurrent update detected, please retry",
+      });
+    }
 
     console.log(`Todo Updated: ${todoId} | marked version ${previousVersion} as not latest`);
 
+    // Create new version
     const newVersion = new Todo({
       title: title !== undefined ? title : currentLatest.title,
       content: content !== undefined ? content : currentLatest.content,
       todoId: todoId,
       version: previousVersion + 1,
       isLatest: true,
+      isDeleted: false,
     });
 
     const savedNewVersion = await newVersion.save();
@@ -199,6 +225,10 @@ exports.deleteTodo = async (req, res) => {
       });
     }
 
+<<<<<<< HEAD
+=======
+    // MVCC Soft Delete: Create a new version with isDeleted flag instead of physical deletion
+>>>>>>> prakant
     const currentLatest = await Todo.findOne({
       todoId: todoId,
       isLatest: true,
@@ -210,19 +240,41 @@ exports.deleteTodo = async (req, res) => {
       });
     }
 
+<<<<<<< HEAD
     if (currentLatest.isDeleted) {
       return res.status(400).json({
+=======
+    // Don't allow deleting already deleted todos
+    if (currentLatest.isDeleted === true) {
+      return res.status(404).json({
+>>>>>>> prakant
         message: "Todo is already deleted",
       });
     }
 
     const previousVersion = currentLatest.version;
 
+<<<<<<< HEAD
     currentLatest.isLatest = false;
     await currentLatest.save();
 
     console.log(`Todo Deleted: ${todoId} | marked version ${previousVersion} as not latest`);
 
+=======
+    // Atomically mark old version as not latest
+    await Todo.updateOne(
+      {
+        _id: currentLatest._id,
+        version: previousVersion,
+        isLatest: true,
+      },
+      { $set: { isLatest: false } }
+    );
+
+    console.log(`Todo Deleted: ${todoId} | marked version ${previousVersion} as not latest`);
+
+    // Create a new "deleted" version - soft delete via versioning
+>>>>>>> prakant
     const deletedVersion = new Todo({
       title: currentLatest.title,
       content: currentLatest.content,
@@ -230,12 +282,20 @@ exports.deleteTodo = async (req, res) => {
       version: previousVersion + 1,
       isLatest: true,
       isDeleted: true,
+<<<<<<< HEAD
+=======
+      deletedAt: new Date(),
+>>>>>>> prakant
     });
 
     const savedDeletedVersion = await deletedVersion.save();
 
     console.log(
+<<<<<<< HEAD
       `Todo Deleted: ${todoId} | version ${savedDeletedVersion.version} marked as deleted`
+=======
+      `Todo Deleted: ${todoId} | created deletion version ${savedDeletedVersion.version}`
+>>>>>>> prakant
     );
 
     res.status(200).json({
