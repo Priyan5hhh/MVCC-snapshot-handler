@@ -36,7 +36,7 @@ exports.createTodo = async (req, res) => {
 
 exports.getTodos = async (req, res) => {
   try {
-    const latestTodos = await Todo.find({ isLatest: true });
+    const latestTodos = await Todo.find({ isLatest: true, isDeleted: false });
 
     res.status(200).json(latestTodos);
   } catch (error) {
@@ -182,6 +182,68 @@ exports.updateTodo = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating todo:", error);
+    res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+};
+
+exports.deleteTodo = async (req, res) => {
+  try {
+    const { todoId } = req.params;
+
+    if (!todoId || typeof todoId !== "string" || todoId.trim().length === 0) {
+      return res.status(400).json({
+        message: "Invalid todoId",
+      });
+    }
+
+    const currentLatest = await Todo.findOne({
+      todoId: todoId,
+      isLatest: true,
+    });
+
+    if (!currentLatest) {
+      return res.status(404).json({
+        message: "Todo not found",
+      });
+    }
+
+    if (currentLatest.isDeleted) {
+      return res.status(400).json({
+        message: "Todo is already deleted",
+      });
+    }
+
+    const previousVersion = currentLatest.version;
+
+    currentLatest.isLatest = false;
+    await currentLatest.save();
+
+    console.log(`Todo Deleted: ${todoId} | marked version ${previousVersion} as not latest`);
+
+    const deletedVersion = new Todo({
+      title: currentLatest.title,
+      content: currentLatest.content,
+      todoId: todoId,
+      version: previousVersion + 1,
+      isLatest: true,
+      isDeleted: true,
+    });
+
+    const savedDeletedVersion = await deletedVersion.save();
+
+    console.log(
+      `Todo Deleted: ${todoId} | version ${savedDeletedVersion.version} marked as deleted`
+    );
+
+    res.status(200).json({
+      message: "Todo deleted successfully",
+      data: savedDeletedVersion,
+    });
+  } catch (error) {
+    console.error("Error deleting todo:", error);
     res.status(500).json({
       message: "Server Error",
       error: error.message,
