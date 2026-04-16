@@ -5,39 +5,34 @@ const connectDB = require("./config/db");
 
 const app = express();
 
-// Initialize database
+// Connect to database
 connectDB();
 
-// middleware
-app.use(cors());
+// Middleware
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 
-// routes
+// Health check
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ success: true, message: "Server is running" });
+});
+
+// API routes
 const todoRoutes = require("./routes/todoRoutes");
 app.use("/api", todoRoutes);
 
-// test route
+// Root route
 app.get("/", (req, res) => {
-  res.send("Server is running 🚀");
+  res.json({ success: true, message: "MVCC Todo API is running 🚀" });
 });
 
-app.get("/api/health", (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "Server is running",
-  });
-});
-
+// 404 handler
 app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: "Route not found",
-  });
+  res.status(404).json({ success: false, message: "Route not found" });
 });
 
-// server start
+// Start server
 const PORT = process.env.PORT || 5000;
-
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

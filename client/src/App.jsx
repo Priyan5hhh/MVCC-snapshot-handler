@@ -1,268 +1,328 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { apiRequest } from "./api.js";
 
-const API_BASE = "http://localhost:5000/api";
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-async function apiRequest(path, options = {}) {
-  const hasBody = options.body !== undefined;
-  const headers = {
-    ...(hasBody ? { "Content-Type": "application/json" } : {}),
-    ...(options.headers || {}),
-  };
-
-  const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
-  const raw = await response.text();
-
-  let payload = null;
-  try {
-    payload = raw ? JSON.parse(raw) : {};
-  } catch (error) {
-    throw new Error(`Invalid JSON response (${response.status})`);
-  }
-
-  if (!response.ok || payload.success === false) {
-    throw new Error(payload.message || `Request failed (${response.status})`);
-  }
-
-  return payload.data;
-}
-
-function App() {
-  const [todos, setTodos] = useState([]);
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [editingTodoId, setEditingTodoId] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [serverStatus, setServerStatus] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [historyTodoId, setHistoryTodoId] = useState("");
-  const [historyItems, setHistoryItems] = useState([]);
-  const [snapshotTodoId, setSnapshotTodoId] = useState("");
-  const [snapshotVersion, setSnapshotVersion] = useState("");
-  const [snapshotItem, setSnapshotItem] = useState(null);
-
-  const submitLabel = useMemo(() => {
-    return editingTodoId ? "Update Todo" : "Create Todo";
-  }, [editingTodoId]);
-
-  const loadTodos = async () => {
-    setLoading(true);
-    setErrorMessage("");
-    try {
-      const latestTodos = await apiRequest("/todos");
-      setTodos(Array.isArray(latestTodos) ? latestTodos : []);
-    } catch (error) {
-      setErrorMessage(error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadTodos();
-  }, []);
-
-  const resetForm = () => {
-    setTitle("");
-    setContent("");
-    setEditingTodoId("");
-  };
-
-  const checkServer = async () => {
-    setServerStatus("Checking...");
-    try {
-      const response = await fetch(`${API_BASE}/health`);
-      const raw = await response.text();
-      const payload = raw ? JSON.parse(raw) : {};
-
-      if (!response.ok || payload.success === false) {
-        throw new Error(payload.message || "Health check failed");
-      }
-
-      setServerStatus(payload.message || "Server is running");
-    } catch (error) {
-      setServerStatus(`Error: ${error.message}`);
-    }
-  };
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setErrorMessage("");
-
-    try {
-      const body = {
-        title,
-        content,
-      };
-
-      if (editingTodoId) {
-        await apiRequest(`/todos/${editingTodoId}`, {
-          method: "PUT",
-          body: JSON.stringify(body),
-        });
-      } else {
-        await apiRequest("/todos", {
-          method: "POST",
-          body: JSON.stringify(body),
-        });
-      }
-
-      resetForm();
-      await loadTodos();
-    } catch (error) {
-      setErrorMessage(error.message);
-    }
-  };
-
-  const startEdit = (todo) => {
-    setEditingTodoId(todo.todoId);
-    setTitle(todo.title || "");
-    setContent(todo.content || "");
-  };
-
-  const handleDelete = async (todoId) => {
-    setErrorMessage("");
-    try {
-      await apiRequest(`/todos/${todoId}`, { method: "DELETE" });
-      await loadTodos();
-    } catch (error) {
-      setErrorMessage(error.message);
-    }
-  };
-
-  const handleHistory = async (todoId) => {
-    setErrorMessage("");
-    setSnapshotItem(null);
-    setSnapshotTodoId(todoId);
-    try {
-      const versions = await apiRequest(`/todos/${todoId}/history`);
-      setHistoryTodoId(todoId);
-      setHistoryItems(Array.isArray(versions) ? versions : []);
-    } catch (error) {
-      setErrorMessage(error.message);
-    }
-  };
-
-  const handleSnapshot = async (todoId) => {
-    if (!snapshotVersion) {
-      setErrorMessage("Enter a version for snapshot");
-      return;
-    }
-
-    const parsedVersion = Number.parseInt(snapshotVersion, 10);
-    if (!Number.isInteger(parsedVersion) || parsedVersion <= 0) {
-      setErrorMessage("Snapshot version must be a positive integer");
-      return;
-    }
-
-    setErrorMessage("");
-    setHistoryTodoId("");
-
-    try {
-      const snapshot = await apiRequest(
-        `/todos/${todoId}/snapshot/${parsedVersion}`
-      );
-
-      setSnapshotTodoId(todoId);
-      setSnapshotItem(snapshot);
-    } catch (error) {
-      setErrorMessage(error.message);
-    }
-  };
-
+function ErrorBanner({ message, onClose }) {
+  if (!message) return null;
   return (
-    <div style={{ fontFamily: "Segoe UI, sans-serif", maxWidth: 960, margin: "24px auto", padding: "0 16px" }}>
-      <h1>MVCC Todo App</h1>
-
-      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 20 }}>
-        <button type="button" onClick={checkServer}>Check Server</button>
-        <span>{serverStatus}</span>
-      </div>
-
-      {errorMessage && (
-        <div style={{ background: "#ffeaea", border: "1px solid #ffb5b5", padding: 12, marginBottom: 16 }}>
-          {errorMessage}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} style={{ display: "grid", gap: 8, marginBottom: 20 }}>
-        <input
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          placeholder="Title"
-          required
-        />
-        <textarea
-          value={content}
-          onChange={(event) => setContent(event.target.value)}
-          placeholder="Content"
-          rows={3}
-        />
-        <div style={{ display: "flex", gap: 8 }}>
-          <button type="submit">{submitLabel}</button>
-          {editingTodoId && (
-            <button type="button" onClick={resetForm}>Cancel Edit</button>
-          )}
-        </div>
-      </form>
-
-      <div style={{ marginBottom: 16 }}>
-        <label htmlFor="snapshotVersion">Snapshot version: </label>
-        <input
-          id="snapshotVersion"
-          type="number"
-          min="1"
-          step="1"
-          value={snapshotVersion}
-          onChange={(event) => setSnapshotVersion(event.target.value)}
-          placeholder="e.g. 2"
-        />
-      </div>
-
-      <h2>Latest Todos</h2>
-      {loading && <p>Loading...</p>}
-      {!loading && todos.length === 0 && <p>No todos yet.</p>}
-
-      <ul style={{ display: "grid", gap: 10, paddingLeft: 20 }}>
-        {todos.map((todo) => (
-          <li key={`${todo.todoId}-${todo.version}`} style={{ border: "1px solid #ddd", padding: 12 }}>
-            <strong>{todo.title}</strong>
-            <p style={{ margin: "6px 0" }}>{todo.content || "No content"}</p>
-            <small>todoId: {todo.todoId} | version: {todo.version}</small>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-              <button type="button" onClick={() => startEdit(todo)}>Edit</button>
-              <button type="button" onClick={() => handleDelete(todo.todoId)}>Delete</button>
-              <button type="button" onClick={() => handleHistory(todo.todoId)}>History</button>
-              <button type="button" onClick={() => handleSnapshot(todo.todoId)}>Snapshot</button>
-            </div>
-          </li>
-        ))}
-      </ul>
-
-      {historyTodoId && (
-        <section style={{ marginTop: 24 }}>
-          <h2>History for {historyTodoId}</h2>
-          <ul style={{ paddingLeft: 20 }}>
-            {historyItems.map((item) => (
-              <li key={`${item.todoId}-${item.version}`}>
-                v{item.version} | {item.title} | deleted: {String(item.isDeleted)} | createdAt: {new Date(item.createdAt).toLocaleString()}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {snapshotItem && (
-        <section style={{ marginTop: 24 }}>
-          <h2>Snapshot for {snapshotTodoId}</h2>
-          <p>Version: {snapshotItem.version}</p>
-          <p>Title: {snapshotItem.title}</p>
-          <p>Content: {snapshotItem.content || "No content"}</p>
-          <p>Deleted: {String(snapshotItem.isDeleted)}</p>
-          <p>Created At: {new Date(snapshotItem.createdAt).toLocaleString()}</p>
-        </section>
-      )}
+    <div className="error-banner" role="alert">
+      <span>⚠️ {message}</span>
+      <button className="close-btn" onClick={onClose} aria-label="Dismiss error">✕</button>
     </div>
   );
 }
 
-export default App;
+function LoadingRow({ text = "Loading…" }) {
+  return (
+    <div className="loading-row">
+      <span className="spinner" />
+      <span>{text}</span>
+    </div>
+  );
+}
+
+// ─── Main App ─────────────────────────────────────────────────────────────────
+
+export default function App() {
+  const navigate = useNavigate();
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  const [todos, setTodos]               = useState([]);
+  const [title, setTitle]               = useState("");
+  const [content, setContent]           = useState("");
+  const [editingTodoId, setEditingTodoId] = useState(null);
+
+  const [loadingList, setLoadingList]   = useState(false);
+  const [submitting, setSubmitting]     = useState(false);
+  const [deletingId, setDeletingId]     = useState(null);  // todoId actively being deleted
+  const [confirmingId, setConfirmingId] = useState(null); // todoId awaiting inline confirm
+
+  const [serverStatus, setServerStatus] = useState("");
+  const [statusOk, setStatusOk]         = useState(null);  // true | false | null
+  const [error, setError]               = useState("");
+
+  const isEditing = Boolean(editingTodoId);
+
+  // ── Load todos ─────────────────────────────────────────────────────────────
+  async function loadTodos() {
+    setLoadingList(true);
+    setError("");
+    try {
+      const data = await apiRequest("/todos");
+      setTodos(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoadingList(false);
+    }
+  }
+
+  useEffect(() => { loadTodos(); }, []);
+
+  // ── Health check ───────────────────────────────────────────────────────────
+  async function checkServer() {
+    setServerStatus("Checking…");
+    setStatusOk(null);
+    try {
+      await apiRequest("/health");
+      setServerStatus("Server is running ✓");
+      setStatusOk(true);
+    } catch (err) {
+      setServerStatus(err.message);
+      setStatusOk(false);
+    }
+  }
+
+  // ── Reset form ─────────────────────────────────────────────────────────────
+  function resetForm() {
+    setTitle("");
+    setContent("");
+    setEditingTodoId(null);
+    setError("");
+  }
+
+  // ── Create / Update ────────────────────────────────────────────────────────
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!title.trim()) { setError("Title cannot be empty"); return; }
+    setError("");
+    setSubmitting(true);
+    try {
+      if (isEditing) {
+        await apiRequest(`/todos/${editingTodoId}`, {
+          method: "PUT",
+          body: JSON.stringify({ title: title.trim(), content }),
+        });
+      } else {
+        await apiRequest("/todos", {
+          method: "POST",
+          body: JSON.stringify({ title: title.trim(), content }),
+        });
+      }
+      resetForm();
+      await loadTodos();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // ── Start editing ──────────────────────────────────────────────────────────
+  function startEdit(todo) {
+    setEditingTodoId(todo.todoId);
+    setTitle(todo.title || "");
+    setContent(todo.content || "");
+    setError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // ── Delete ─────────────────────────────────────────────────────────────────
+  function requestDelete(todoId) {
+    setConfirmingId(todoId);
+    setError("");
+  }
+
+  function cancelDelete() {
+    setConfirmingId(null);
+  }
+
+  async function confirmDelete(todoId) {
+    setConfirmingId(null);
+    setError("");
+    setDeletingId(todoId);
+    try {
+      await apiRequest(`/todos/${todoId}`, { method: "DELETE" });
+      if (editingTodoId === todoId) resetForm();
+      await loadTodos();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  // ── Navigate to history page ───────────────────────────────────────────────
+  function openHistory(todoId) {
+    navigate(`/history/${todoId}`);
+  }
+
+  // ─── Render ────────────────────────────────────────────────────────────────
+  return (
+    <div className="page">
+
+      {/* Header */}
+      <header className="header">
+        <div className="header-title">
+          <h1>MVCC Todo</h1>
+          <span className="header-badge">MVCC</span>
+        </div>
+        <div className="status-row">
+          <button className="btn btn-secondary btn-sm" onClick={checkServer} id="btn-check-server">
+            Check Server
+          </button>
+          {serverStatus && (
+            <span className={`status-text ${statusOk === true ? "ok" : statusOk === false ? "err" : ""}`}>
+              {serverStatus}
+            </span>
+          )}
+        </div>
+      </header>
+
+      {/* Error Banner */}
+      <ErrorBanner message={error} onClose={() => setError("")} />
+
+      {/* Create / Update Form */}
+      <div className="card form-card">
+        <h2>{isEditing ? "✏️ Editing Todo" : "➕ New Todo"}</h2>
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="form-grid">
+            <input
+              id="input-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Todo title…"
+              disabled={submitting}
+              required
+              autoComplete="off"
+            />
+            <textarea
+              id="input-content"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Description (optional)…"
+              rows={3}
+              disabled={submitting}
+            />
+            <div className="btn-row">
+              <button
+                id="btn-submit"
+                type="submit"
+                className="btn btn-primary"
+                disabled={submitting || !title.trim()}
+              >
+                {submitting ? (
+                  <><span className="spinner" /> {isEditing ? "Saving…" : "Creating…"}</>
+                ) : (
+                  isEditing ? "Save Update" : "Create Todo"
+                )}
+              </button>
+              {isEditing && (
+                <button
+                  id="btn-cancel-edit"
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={resetForm}
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          </div>
+        </form>
+      </div>
+
+      {/* Todo List */}
+      <div className="section-heading">
+        <h2>Latest Todos</h2>
+        {!loadingList && <span className="count-badge">{todos.length}</span>}
+        <button
+          className="btn btn-secondary btn-sm"
+          style={{ marginLeft: "auto" }}
+          onClick={loadTodos}
+          disabled={loadingList}
+          id="btn-refresh"
+          title="Refresh"
+        >
+          {loadingList ? <span className="spinner" /> : "↻ Refresh"}
+        </button>
+      </div>
+
+      {loadingList && <LoadingRow text="Loading todos…" />}
+
+      {!loadingList && todos.length === 0 && (
+        <div className="empty-state">
+          <div className="icon">📋</div>
+          <p>No todos yet — create your first one above.</p>
+        </div>
+      )}
+
+      {!loadingList && (
+        <ul className="todo-list">
+          {todos.map((todo) => {
+            const isBeingDeleted = deletingId === todo.todoId;
+            const isCurrentlyEditing = editingTodoId === todo.todoId;
+            return (
+              <li
+                key={`${todo.todoId}-${todo.version}`}
+                className={`todo-item${isCurrentlyEditing ? " editing" : ""}`}
+              >
+                <div className="todo-title">{todo.title}</div>
+                {todo.content && (
+                  <div className="todo-content">{todo.content}</div>
+                )}
+                <div className="todo-meta">
+                  <span>v{todo.version}</span>
+                  <span title={todo.todoId}>
+                    id: {todo.todoId.slice(0, 8)}…
+                  </span>
+                  <span>{new Date(todo.createdAt).toLocaleString()}</span>
+                </div>
+                {/* Inline delete confirmation */}
+                {confirmingId === todo.todoId ? (
+                  <div className="btn-row" style={{ alignItems: "center", background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 8, padding: "8px 12px", gap: 10 }}>
+                    <span style={{ fontSize: "0.82rem", color: "#fca5a5" }}>🗑 Delete this todo?</span>
+                    <button
+                      className="btn btn-danger btn-sm"
+                      onClick={() => confirmDelete(todo.todoId)}
+                      id={`btn-confirm-delete-${todo.todoId}`}
+                    >
+                      Yes, Delete
+                    </button>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={cancelDelete}
+                      id={`btn-cancel-delete-${todo.todoId}`}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div className="btn-row">
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => startEdit(todo)}
+                      disabled={submitting || isBeingDeleted}
+                      id={`btn-edit-${todo.todoId}`}
+                    >
+                      ✏️ Edit
+                    </button>
+                    <button
+                      className="btn btn-danger btn-sm"
+                      onClick={() => requestDelete(todo.todoId)}
+                      disabled={submitting || isBeingDeleted}
+                      id={`btn-delete-${todo.todoId}`}
+                    >
+                      {isBeingDeleted ? <><span className="spinner" /> Deleting…</> : "🗑 Delete"}
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => openHistory(todo.todoId)}
+                      disabled={submitting || isBeingDeleted}
+                      id={`btn-history-${todo.todoId}`}
+                    >
+                      🕑 History
+                    </button>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
