@@ -225,10 +225,7 @@ exports.deleteTodo = async (req, res) => {
       });
     }
 
-<<<<<<< HEAD
-=======
     // MVCC Soft Delete: Create a new version with isDeleted flag instead of physical deletion
->>>>>>> prakant
     const currentLatest = await Todo.findOne({
       todoId: todoId,
       isLatest: true,
@@ -240,27 +237,15 @@ exports.deleteTodo = async (req, res) => {
       });
     }
 
-<<<<<<< HEAD
-    if (currentLatest.isDeleted) {
-      return res.status(400).json({
-=======
     // Don't allow deleting already deleted todos
     if (currentLatest.isDeleted === true) {
       return res.status(404).json({
->>>>>>> prakant
         message: "Todo is already deleted",
       });
     }
 
     const previousVersion = currentLatest.version;
 
-<<<<<<< HEAD
-    currentLatest.isLatest = false;
-    await currentLatest.save();
-
-    console.log(`Todo Deleted: ${todoId} | marked version ${previousVersion} as not latest`);
-
-=======
     // Atomically mark old version as not latest
     await Todo.updateOne(
       {
@@ -274,7 +259,6 @@ exports.deleteTodo = async (req, res) => {
     console.log(`Todo Deleted: ${todoId} | marked version ${previousVersion} as not latest`);
 
     // Create a new "deleted" version - soft delete via versioning
->>>>>>> prakant
     const deletedVersion = new Todo({
       title: currentLatest.title,
       content: currentLatest.content,
@@ -282,20 +266,13 @@ exports.deleteTodo = async (req, res) => {
       version: previousVersion + 1,
       isLatest: true,
       isDeleted: true,
-<<<<<<< HEAD
-=======
       deletedAt: new Date(),
->>>>>>> prakant
     });
 
     const savedDeletedVersion = await deletedVersion.save();
 
     console.log(
-<<<<<<< HEAD
-      `Todo Deleted: ${todoId} | version ${savedDeletedVersion.version} marked as deleted`
-=======
       `Todo Deleted: ${todoId} | created deletion version ${savedDeletedVersion.version}`
->>>>>>> prakant
     );
 
     res.status(200).json({
