@@ -62,59 +62,59 @@
 ╚════════════════════════════════════════════════╝
   ✓ PASS: GET /api/todos returns 200
   ✓ PASS: No multiple isLatest=true entries
-  ✓ PASS: Todo 686f6494-0208-45e5-9ade-1cf666ff94bc found in latest list
-  ✓ PASS: Todo 686f6494-0208-45e5-9ade-1cf666ff94bc version matches (4)
-  ✓ PASS: Todo fce737a7-a101-41e9-92f9-db3e4fb24195 found in latest list
-  ✓ PASS: Todo fce737a7-a101-41e9-92f9-db3e4fb24195 version matches (4)
-  ✓ PASS: Todo f8dfe3ff-ab3b-4b60-81b9-eaeca4bfce74 found in latest list
-  ✓ PASS: Todo f8dfe3ff-ab3b-4b60-81b9-eaeca4bfce74 version matches (4)
-  ✓ PASS: Todo ef1b5e60-fc53-4225-a0ba-8a46b92afdce found in latest list
-  ✓ PASS: Todo ef1b5e60-fc53-4225-a0ba-8a46b92afdce version matches (4)
-  ✓ PASS: Todo 2af28bd1-fa9d-4e1c-88ed-916dd0f3bce7 found in latest list
-  ✓ PASS: Todo 2af28bd1-fa9d-4e1c-88ed-916dd0f3bce7 version matches (4)
+  ✓ PASS: Todo f804b5fb-a7e1-49c7-8d2a-a3d37cd2303b found in latest list
+  ✓ PASS: Todo f804b5fb-a7e1-49c7-8d2a-a3d37cd2303b version matches (4)
+  ✓ PASS: Todo e032665a-b5fd-4327-8477-4b92a3b4a784 found in latest list
+  ✓ PASS: Todo e032665a-b5fd-4327-8477-4b92a3b4a784 version matches (4)
+  ✓ PASS: Todo 99d7db7f-76f6-4cbb-8639-b1e8514b5da3 found in latest list
+  ✓ PASS: Todo 99d7db7f-76f6-4cbb-8639-b1e8514b5da3 version matches (4)
+  ✓ PASS: Todo 5d458d6d-f5ce-4c64-941d-de2e63e8edfe found in latest list
+  ✓ PASS: Todo 5d458d6d-f5ce-4c64-941d-de2e63e8edfe version matches (4)
+  ✓ PASS: Todo d08e86ae-9de1-4d51-9b53-22f2253c6f7c found in latest list
+  ✓ PASS: Todo d08e86ae-9de1-4d51-9b53-22f2253c6f7c version matches (4)
 
 ╔════════════════════════════════════════════════╗
 ║ PHASE 3: VERSION HISTORY VALIDATION            ║
 ╚════════════════════════════════════════════════╝
-  ✓ PASS: History for todo 686f6494-0208-45e5-9ade-1cf666ff94bc returns 200
-  ✓ PASS: Todo 686f6494-0208-45e5-9ade-1cf666ff94bc has 4+ versions (1 initial + 3 updates)
-  ✓ PASS: Todo 686f6494-0208-45e5-9ade-1cf666ff94bc history starts at v1
-  ✓ PASS: Todo 686f6494-0208-45e5-9ade-1cf666ff94bc versions sequential
-  ✓ PASS: Todo 686f6494-0208-45e5-9ade-1cf666ff94bc has exactly 1 isLatest=true
-  ✓ PASS: Todo 686f6494-0208-45e5-9ade-1cf666ff94bc v1 title immutable
-  ✓ PASS: History for todo fce737a7-a101-41e9-92f9-db3e4fb24195 returns 200
-  ✓ PASS: Todo fce737a7-a101-41e9-92f9-db3e4fb24195 has 4+ versions (1 initial + 3 updates)
-  ✓ PASS: Todo fce737a7-a101-41e9-92f9-db3e4fb24195 history starts at v1
-  ✓ PASS: Todo fce737a7-a101-41e9-92f9-db3e4fb24195 versions sequential
-  ✓ PASS: Todo fce737a7-a101-41e9-92f9-db3e4fb24195 has exactly 1 isLatest=true
-  ✓ PASS: Todo fce737a7-a101-41e9-92f9-db3e4fb24195 v1 title immutable
-  ✓ PASS: History for todo f8dfe3ff-ab3b-4b60-81b9-eaeca4bfce74 returns 200
-  ✓ PASS: Todo f8dfe3ff-ab3b-4b60-81b9-eaeca4bfce74 has 4+ versions (1 initial + 3 updates)
-  ✓ PASS: Todo f8dfe3ff-ab3b-4b60-81b9-eaeca4bfce74 history starts at v1
-  ✓ PASS: Todo f8dfe3ff-ab3b-4b60-81b9-eaeca4bfce74 versions sequential
-  ✓ PASS: Todo f8dfe3ff-ab3b-4b60-81b9-eaeca4bfce74 has exactly 1 isLatest=true
-  ✓ PASS: Todo f8dfe3ff-ab3b-4b60-81b9-eaeca4bfce74 v1 title immutable
-  ✓ PASS: History for todo ef1b5e60-fc53-4225-a0ba-8a46b92afdce returns 200
-  ✓ PASS: Todo ef1b5e60-fc53-4225-a0ba-8a46b92afdce has 4+ versions (1 initial + 3 updates)
-  ✓ PASS: Todo ef1b5e60-fc53-4225-a0ba-8a46b92afdce history starts at v1
-  ✓ PASS: Todo ef1b5e60-fc53-4225-a0ba-8a46b92afdce versions sequential
-  ✓ PASS: Todo ef1b5e60-fc53-4225-a0ba-8a46b92afdce has exactly 1 isLatest=true
-  ✓ PASS: Todo ef1b5e60-fc53-4225-a0ba-8a46b92afdce v1 title immutable
-  ✓ PASS: History for todo 2af28bd1-fa9d-4e1c-88ed-916dd0f3bce7 returns 200
-  ✓ PASS: Todo 2af28bd1-fa9d-4e1c-88ed-916dd0f3bce7 has 4+ versions (1 initial + 3 updates)
-  ✓ PASS: Todo 2af28bd1-fa9d-4e1c-88ed-916dd0f3bce7 history starts at v1
-  ✓ PASS: Todo 2af28bd1-fa9d-4e1c-88ed-916dd0f3bce7 versions sequential
-  ✓ PASS: Todo 2af28bd1-fa9d-4e1c-88ed-916dd0f3bce7 has exactly 1 isLatest=true
-  ✓ PASS: Todo 2af28bd1-fa9d-4e1c-88ed-916dd0f3bce7 v1 title immutable
+  ✓ PASS: History for todo f804b5fb-a7e1-49c7-8d2a-a3d37cd2303b returns 200
+  ✓ PASS: Todo f804b5fb-a7e1-49c7-8d2a-a3d37cd2303b has 4+ versions (1 initial + 3 updates)
+  ✓ PASS: Todo f804b5fb-a7e1-49c7-8d2a-a3d37cd2303b history starts at v1
+  ✓ PASS: Todo f804b5fb-a7e1-49c7-8d2a-a3d37cd2303b versions sequential
+  ✓ PASS: Todo f804b5fb-a7e1-49c7-8d2a-a3d37cd2303b has exactly 1 isLatest=true
+  ✓ PASS: Todo f804b5fb-a7e1-49c7-8d2a-a3d37cd2303b v1 title immutable
+  ✓ PASS: History for todo e032665a-b5fd-4327-8477-4b92a3b4a784 returns 200
+  ✓ PASS: Todo e032665a-b5fd-4327-8477-4b92a3b4a784 has 4+ versions (1 initial + 3 updates)
+  ✓ PASS: Todo e032665a-b5fd-4327-8477-4b92a3b4a784 history starts at v1
+  ✓ PASS: Todo e032665a-b5fd-4327-8477-4b92a3b4a784 versions sequential
+  ✓ PASS: Todo e032665a-b5fd-4327-8477-4b92a3b4a784 has exactly 1 isLatest=true
+  ✓ PASS: Todo e032665a-b5fd-4327-8477-4b92a3b4a784 v1 title immutable
+  ✓ PASS: History for todo 99d7db7f-76f6-4cbb-8639-b1e8514b5da3 returns 200
+  ✓ PASS: Todo 99d7db7f-76f6-4cbb-8639-b1e8514b5da3 has 4+ versions (1 initial + 3 updates)
+  ✓ PASS: Todo 99d7db7f-76f6-4cbb-8639-b1e8514b5da3 history starts at v1
+  ✓ PASS: Todo 99d7db7f-76f6-4cbb-8639-b1e8514b5da3 versions sequential
+  ✓ PASS: Todo 99d7db7f-76f6-4cbb-8639-b1e8514b5da3 has exactly 1 isLatest=true
+  ✓ PASS: Todo 99d7db7f-76f6-4cbb-8639-b1e8514b5da3 v1 title immutable
+  ✓ PASS: History for todo 5d458d6d-f5ce-4c64-941d-de2e63e8edfe returns 200
+  ✓ PASS: Todo 5d458d6d-f5ce-4c64-941d-de2e63e8edfe has 4+ versions (1 initial + 3 updates)
+  ✓ PASS: Todo 5d458d6d-f5ce-4c64-941d-de2e63e8edfe history starts at v1
+  ✓ PASS: Todo 5d458d6d-f5ce-4c64-941d-de2e63e8edfe versions sequential
+  ✓ PASS: Todo 5d458d6d-f5ce-4c64-941d-de2e63e8edfe has exactly 1 isLatest=true
+  ✓ PASS: Todo 5d458d6d-f5ce-4c64-941d-de2e63e8edfe v1 title immutable
+  ✓ PASS: History for todo d08e86ae-9de1-4d51-9b53-22f2253c6f7c returns 200
+  ✓ PASS: Todo d08e86ae-9de1-4d51-9b53-22f2253c6f7c has 4+ versions (1 initial + 3 updates)
+  ✓ PASS: Todo d08e86ae-9de1-4d51-9b53-22f2253c6f7c history starts at v1
+  ✓ PASS: Todo d08e86ae-9de1-4d51-9b53-22f2253c6f7c versions sequential
+  ✓ PASS: Todo d08e86ae-9de1-4d51-9b53-22f2253c6f7c has exactly 1 isLatest=true
+  ✓ PASS: Todo d08e86ae-9de1-4d51-9b53-22f2253c6f7c v1 title immutable
 
 ╔════════════════════════════════════════════════╗
-║ PHASE 4: SNAPSHOT TIME-TRAVEL QUERIES          ║
+║ PHASE 4: SNAPSHOT VERSION QUERIES              ║
 ╚════════════════════════════════════════════════╝
-  ✓ PASS: Snapshot at v1 timestamp returns 200
-  ✓ PASS: Snapshot at v1 time returns version 1
-  ✓ PASS: Snapshot at latest timestamp returns 200
-  ✓ PASS: Snapshot before v1 returns 404
-  ✓ PASS: Invalid timestamp returns 400
+  ✓ PASS: Snapshot at v1 returns 200
+  ✓ PASS: Snapshot v1 returns version 1
+  ✓ PASS: Snapshot at latest version returns 200
+  ✓ PASS: Snapshot for missing version returns 404
+  ✓ PASS: Invalid version returns 400
 
 ╔════════════════════════════════════════════════╗
 ║ PHASE 5: EDGE CASE SCENARIOS                   ║
@@ -142,8 +142,8 @@
 ║ PHASE 7: DATABASE STATE VALIDATION             ║
 ╚════════════════════════════════════════════════╝
   ✓ PASS: GET all todos returns 200
-  Total active todos in database: 178
-  ✓ PASS: All 178 todos have required fields
+  Total active todos in database: 114
+  ✓ PASS: All 114 todos have required fields
   ✓ PASS: All todos have isLatest=true
   ✓ PASS: No deleted todos in active list
 
@@ -160,4 +160,4 @@ Pass Rate:   100.00%
 ✅ ALL TESTS PASSED - SYSTEM IS STABLE!
 The MVCC backend is production-ready and handles all edge cases correctly.
 
-✓ Full report saved to: C:\Users\praka\OneDrive\Desktop\MVCC-snapshot-handler\server\qa_master_test_report.txt
+✓ Full report saved to: C:\Users\rajpu\OneDrive\Desktop\MVCC snapshot handler\server\qa_master_test_report.txt

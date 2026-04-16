@@ -1,18 +1,24 @@
 const { v4: uuidv4 } = require("uuid");
 const Todo = require("../models/todoModel");
 
+const sendSuccess = (res, statusCode, data) => {
+  res.status(statusCode).json({ success: true, data });
+};
+
+const sendError = (res, statusCode, message) => {
+  res.status(statusCode).json({ success: false, message });
+};
+
 exports.createTodo = async (req, res) => {
   try {
     const { title, content } = req.body;
 
-    if (!title) {
-      return res.status(400).json({
-        message: "Title is required",
-      });
+    if (!title || typeof title !== "string" || title.trim().length === 0) {
+      return sendError(res, 400, "Title is required");
     }
 
     const newTodo = new Todo({
-      title,
+      title: title.trim(),
       content,
       todoId: uuidv4(),
       version: 1,
@@ -23,13 +29,10 @@ exports.createTodo = async (req, res) => {
 
     console.log(`Todo Created: ${savedTodo.todoId} | version: ${savedTodo.version}`);
 
-    res.status(201).json(savedTodo);
+    return sendSuccess(res, 201, savedTodo);
   } catch (error) {
     console.error("Error creating todo:", error);
-    res.status(500).json({
-      message: "Server Error",
-      error: error.message,
-    });
+    return sendError(res, 500, "Server Error");
   }
 };
 
@@ -40,126 +43,98 @@ exports.getTodos = async (req, res) => {
     const latestTodos = await Todo.find({ 
       isLatest: true,
       isDeleted: { $ne: true }
-    });
+    }).sort({ createdAt: -1 });
 
-    res.status(200).json(latestTodos);
+    return sendSuccess(res, 200, latestTodos);
   } catch (error) {
     console.error("Error fetching todos:", error);
-    res.status(500).json({
-      message: "Server Error",
-      error: error.message,
-    });
+    return sendError(res, 500, "Server Error");
   }
 };
 
 exports.getTodoHistory = async (req, res) => {
   try {
-    const { todoId } = req.params;
+    const todoId = (req.params.todoId || "").trim();
 
-    if (!todoId || typeof todoId !== "string" || todoId.trim().length === 0) {
-      return res.status(400).json({
-        message: "Invalid todoId",
-      });
+    if (!todoId) {
+      return sendError(res, 400, "Invalid todoId");
     }
 
-    const history = await Todo.find({ todoId: todoId }).sort({ version: 1 }).select(
-      "title content version isLatest isDeleted deletedAt createdAt -_id"
-    );
+    const history = await Todo.find({ todoId }).sort({ version: 1 }).select("-__v");
 
     if (!history || history.length === 0) {
       console.warn(`History fetch: todoId=${todoId} | versions=0`);
-      return res.status(404).json({
-        message: `No history found for todoId ${todoId}`,
-      });
+      return sendError(res, 404, `No history found for todoId ${todoId}`);
     }
 
     console.log(`History fetch: todoId=${todoId} | versions=${history.length}`);
 
-    res.status(200).json(history);
+    return sendSuccess(res, 200, history);
   } catch (error) {
     console.error("Error fetching todo history:", error);
-    res.status(500).json({
-      message: "Server Error",
-      error: error.message,
-    });
+    return sendError(res, 500, "Server Error");
   }
 };
 
 exports.getTodoSnapshot = async (req, res) => {
   try {
-    const { todoId } = req.params;
-    const { time } = req.query;
+    const todoId = (req.params.todoId || "").trim();
+    const versionRaw = req.params.version;
 
-    if (!todoId || typeof todoId !== "string" || todoId.trim().length === 0) {
-      return res.status(400).json({
-        message: "Invalid todoId",
-      });
+    if (!todoId) {
+      return sendError(res, 400, "Invalid todoId");
     }
 
-    if (!time || typeof time !== "string" || time.trim().length === 0) {
-      return res.status(400).json({
-        message: "Timestamp query parameter is required",
-      });
-    }
-
-    const requestedTime = new Date(time);
-    if (Number.isNaN(requestedTime.getTime())) {
-      return res.status(400).json({
-        message: "Invalid timestamp format. Use ISO format.",
-      });
+    const version = Number.parseInt(versionRaw, 10);
+    if (!Number.isInteger(version) || version <= 0) {
+      return sendError(res, 400, "Invalid version. Use a positive integer.");
     }
 
     const snapshot = await Todo.findOne({
-      todoId: todoId,
-      createdAt: { $lte: requestedTime },
+      todoId,
+      version,
     })
-      .sort({ version: -1 })
-      .select("todoId title content version isLatest isDeleted deletedAt createdAt -_id");
+      .select("-__v");
 
     if (!snapshot) {
-      console.warn(`Snapshot fetch: todoId=${todoId} | time=${requestedTime.toISOString()} | versions=0`);
-      return res.status(404).json({
-        message: `No snapshot found for todoId ${todoId} before ${requestedTime.toISOString()}`,
-      });
+      console.warn(`Snapshot fetch: todoId=${todoId} | version=${version} | found=false`);
+      return sendError(res, 404, `No snapshot found for todoId ${todoId} at version ${version}`);
     }
 
-    console.log(
-      `Snapshot fetch: todoId=${todoId} | time=${requestedTime.toISOString()} | returnedVersion=${snapshot.version}`
-    );
+    console.log(`Snapshot fetch: todoId=${todoId} | version=${version} | returnedVersion=${snapshot.version}`);
 
-    res.status(200).json(snapshot);
+    return sendSuccess(res, 200, snapshot);
   } catch (error) {
     console.error("Error fetching todo snapshot:", error);
-    res.status(500).json({
-      message: "Server Error",
-      error: error.message,
-    });
+    return sendError(res, 500, "Server Error");
   }
 };
 
 exports.updateTodo = async (req, res) => {
   try {
-    const { todoId } = req.params;
+    const todoId = (req.params.todoId || "").trim();
     const { title, content } = req.body;
 
-    if (!title && content === undefined) {
-      return res.status(400).json({
-        message: "At least one field (title or content) is required",
-      });
+    if (!todoId) {
+      return sendError(res, 400, "Invalid todoId");
     }
 
-    // ATOMIC OPERATION: Use updateOne with condition to ensure we only update if this is the latest
-    // This prevents race conditions in concurrent updates
+    if (title === undefined && content === undefined) {
+      return sendError(res, 400, "At least one field (title or content) is required");
+    }
+
+    if (title !== undefined && (typeof title !== "string" || title.trim().length === 0)) {
+      return sendError(res, 400, "Title cannot be empty");
+    }
+
     const currentLatest = await Todo.findOne({
-      todoId: todoId,
+      todoId,
       isLatest: true,
-      isDeleted: { $ne: true }, // Don't update deleted todos
+      isDeleted: { $ne: true },
     });
 
     if (!currentLatest) {
-      return res.status(404).json({
-        message: "Todo not found",
-      });
+      return sendError(res, 404, "Todo not found");
     }
 
     const previousVersion = currentLatest.version;
@@ -168,93 +143,91 @@ exports.updateTodo = async (req, res) => {
     const updateResult = await Todo.updateOne(
       {
         _id: currentLatest._id,
-        todoId: todoId,
+        todoId,
         version: previousVersion,
-        isLatest: true, // ensure this is still the latest
+        isLatest: true,
       },
       { $set: { isLatest: false } }
     );
 
     if (updateResult.modifiedCount === 0) {
-      // Another update may have changed the version, retry logic would go here
       console.warn(`Update conflict for todoId=${todoId}, retrying...`);
-      // For now, we'll return an error indicating conflict
-      return res.status(409).json({
-        message: "Concurrent update detected, please retry",
-      });
+      return sendError(res, 409, "Concurrent update detected, please retry");
     }
 
     console.log(`Todo Updated: ${todoId} | marked version ${previousVersion} as not latest`);
 
     // Create new version
     const newVersion = new Todo({
-      title: title !== undefined ? title : currentLatest.title,
+      title: title !== undefined ? title.trim() : currentLatest.title,
       content: content !== undefined ? content : currentLatest.content,
-      todoId: todoId,
+      todoId,
       version: previousVersion + 1,
       isLatest: true,
       isDeleted: false,
     });
 
-    const savedNewVersion = await newVersion.save();
+    let savedNewVersion;
+    try {
+      savedNewVersion = await newVersion.save();
+    } catch (saveError) {
+      await Todo.updateOne(
+        { _id: currentLatest._id, isLatest: false },
+        { $set: { isLatest: true } }
+      );
+
+      if (saveError && saveError.code === 11000) {
+        return sendError(res, 409, "Concurrent update detected, please retry");
+      }
+
+      throw saveError;
+    }
 
     console.log(
       `Todo Updated: ${todoId} | created version ${savedNewVersion.version}`
     );
 
-    res.status(200).json({
-      message: "Todo updated successfully",
-      data: savedNewVersion,
-    });
+    return sendSuccess(res, 200, savedNewVersion);
   } catch (error) {
     console.error("Error updating todo:", error);
-    res.status(500).json({
-      message: "Server Error",
-      error: error.message,
-    });
+    return sendError(res, 500, "Server Error");
   }
 };
 
 exports.deleteTodo = async (req, res) => {
   try {
-    const { todoId } = req.params;
+    const todoId = (req.params.todoId || "").trim();
 
-    if (!todoId || typeof todoId !== "string" || todoId.trim().length === 0) {
-      return res.status(400).json({
-        message: "Invalid todoId",
-      });
+    if (!todoId) {
+      return sendError(res, 400, "Invalid todoId");
     }
 
-    // MVCC Soft Delete: Create a new version with isDeleted flag instead of physical deletion
     const currentLatest = await Todo.findOne({
-      todoId: todoId,
+      todoId,
       isLatest: true,
+      isDeleted: { $ne: true },
     });
 
     if (!currentLatest) {
-      return res.status(404).json({
-        message: "Todo not found",
-      });
-    }
-
-    // Don't allow deleting already deleted todos
-    if (currentLatest.isDeleted === true) {
-      return res.status(404).json({
-        message: "Todo is already deleted",
-      });
+      return sendError(res, 404, "Todo not found");
     }
 
     const previousVersion = currentLatest.version;
 
     // Atomically mark old version as not latest
-    await Todo.updateOne(
+    const updateResult = await Todo.updateOne(
       {
         _id: currentLatest._id,
+        todoId,
         version: previousVersion,
         isLatest: true,
       },
       { $set: { isLatest: false } }
     );
+
+    if (updateResult.modifiedCount === 0) {
+      return sendError(res, 409, "Concurrent delete detected, please retry");
+    }
 
     console.log(`Todo Deleted: ${todoId} | marked version ${previousVersion} as not latest`);
 
@@ -262,28 +235,36 @@ exports.deleteTodo = async (req, res) => {
     const deletedVersion = new Todo({
       title: currentLatest.title,
       content: currentLatest.content,
-      todoId: todoId,
+      todoId,
       version: previousVersion + 1,
       isLatest: true,
       isDeleted: true,
       deletedAt: new Date(),
     });
 
-    const savedDeletedVersion = await deletedVersion.save();
+    let savedDeletedVersion;
+    try {
+      savedDeletedVersion = await deletedVersion.save();
+    } catch (saveError) {
+      await Todo.updateOne(
+        { _id: currentLatest._id, isLatest: false },
+        { $set: { isLatest: true } }
+      );
+
+      if (saveError && saveError.code === 11000) {
+        return sendError(res, 409, "Concurrent delete detected, please retry");
+      }
+
+      throw saveError;
+    }
 
     console.log(
       `Todo Deleted: ${todoId} | created deletion version ${savedDeletedVersion.version}`
     );
 
-    res.status(200).json({
-      message: "Todo deleted successfully",
-      data: savedDeletedVersion,
-    });
+    return sendSuccess(res, 200, savedDeletedVersion);
   } catch (error) {
     console.error("Error deleting todo:", error);
-    res.status(500).json({
-      message: "Server Error",
-      error: error.message,
-    });
+    return sendError(res, 500, "Server Error");
   }
 };

@@ -34,4 +34,13 @@ const todoSchema = new mongoose.Schema({
   },
 });
 
+todoSchema.index({ todoId: 1 });
+todoSchema.index({ isLatest: 1 });
+todoSchema.index({ createdAt: -1 });
+todoSchema.index({ todoId: 1, version: 1 }, { unique: true });
+todoSchema.index(
+  { todoId: 1, isLatest: 1 },
+  { unique: true, partialFilterExpression: { isLatest: true } }
+);
+
 module.exports = mongoose.model("Todo", todoSchema);

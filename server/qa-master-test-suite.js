@@ -52,9 +52,19 @@ function makeRequest(method, path, data = null) {
       res.on("data", (chunk) => (body += chunk));
       res.on("end", () => {
         try {
-          resolve({ status: res.statusCode, body: JSON.parse(body) });
+          const parsed = JSON.parse(body);
+          resolve({
+            status: res.statusCode,
+            body: parsed,
+            data:
+              parsed && Object.prototype.hasOwnProperty.call(parsed, "data")
+                ? parsed.data
+                : parsed,
+            success: parsed && parsed.success === true,
+            message: parsed && parsed.message,
+          });
         } catch {
-          resolve({ status: res.statusCode, body: body });
+          resolve({ status: res.statusCode, body: body, data: body, success: false, message: "" });
         }
       });
     });
@@ -91,10 +101,10 @@ async function testPhase1_CreateAndUpdate() {
       content: `Content for todo ${i + 1}`,
     });
     test(res.status === 201, `Create todo ${i + 1}`);
-    test(res.body.version === 1, `Todo ${i + 1} starts at version 1`);
-    test(res.body.isLatest === true, `Todo ${i + 1} marked as latest`);
+    test(res.data.version === 1, `Todo ${i + 1} starts at version 1`);
+    test(res.data.isLatest === true, `Todo ${i + 1} marked as latest`);
     if (res.status === 201) {
-      todos.push(res.body);
+      todos.push(res.data);
     }
   }
 
@@ -110,15 +120,15 @@ async function testPhase1_CreateAndUpdate() {
 
       if (res.status === 200) {
         test(
-          res.body.data.version === j + 2,
+          res.data.version === j + 2,
           `Todo ${i + 1} version ${j + 2} created`
         );
         test(
-          res.body.data.isLatest === true,
+          res.data.isLatest === true,
           `Todo ${i + 1} v${j + 2} is latest`
         );
         // Update tracking object
-        todo.version = res.body.data.version;
+        todo.version = res.data.version;
       } else if (res.status === 409) {
         log(`    Note: Conflict on todo ${i + 1} update ${j + 1} (expected in concurrency)`, "yellow");
       }
@@ -139,7 +149,7 @@ async function testPhase2_Consistency(todos) {
 
   // Check for multiple isLatest=true
   const todoCounts = {};
-  res.body.forEach((todo) => {
+  res.data.forEach((todo) => {
     todoCounts[todo.todoId] = (todoCounts[todo.todoId] || 0) + 1;
   });
 
@@ -154,7 +164,7 @@ async function testPhase2_Consistency(todos) {
 
   // Verify each created todo is in the list
   for (const todo of todos) {
-    const found = res.body.find((t) => t.todoId === todo.todoId);
+    const found = res.data.find((t) => t.todoId === todo.todoId);
     test(found !== undefined, `Todo ${todo.todoId} found in latest list`);
     if (found) {
       test(
@@ -175,7 +185,7 @@ async function testPhase3_History(todos) {
     test(res.status === 200, `History for todo ${todo.todoId} returns 200`);
 
     if (res.status === 200) {
-      const history = res.body;
+      const history = res.data;
       test(history.length >= 4, `Todo ${todo.todoId} has 4+ versions (1 initial + 3 updates)`);
       test(
         history[0].version === 1,
@@ -211,7 +221,7 @@ async function testPhase3_History(todos) {
 
 async function testPhase4_Snapshots(todos) {
   log("\n╔════════════════════════════════════════════════╗", "cyan");
-  log("║ PHASE 4: SNAPSHOT TIME-TRAVEL QUERIES          ║", "cyan");
+  log("║ PHASE 4: SNAPSHOT VERSION QUERIES              ║", "cyan");
   log("╚════════════════════════════════════════════════╝", "cyan");
 
   if (todos.length === 0) return;
@@ -225,48 +235,45 @@ async function testPhase4_Snapshots(todos) {
   );
   if (histRes.status !== 200) return;
 
-  const history = histRes.body;
+  const history = histRes.data;
 
-  // Test snapshot at v1 creation time
+  // Test snapshot by version
   if (history.length > 0) {
-    const v1Time = history[0].createdAt;
+    const v1Version = history[0].version;
     const snapRes = await makeRequest(
       "GET",
-      `/api/todos/${todo.todoId}/snapshot?time=${encodeURIComponent(v1Time)}`
+      `/api/todos/${todo.todoId}/snapshot/${v1Version}`
     );
-    test(snapRes.status === 200, "Snapshot at v1 timestamp returns 200");
+    test(snapRes.status === 200, "Snapshot at v1 returns 200");
     test(
-      snapRes.body.version === 1,
-      "Snapshot at v1 time returns version 1"
+      snapRes.data.version === 1,
+      "Snapshot v1 returns version 1"
     );
   }
 
-  // Test snapshot at latest time
+  // Test snapshot at latest version
   if (history.length > 0) {
-    const latestTime = history[history.length - 1].createdAt;
+    const latestVersion = history[history.length - 1].version;
     const snapRes = await makeRequest(
       "GET",
-      `/api/todos/${todo.todoId}/snapshot?time=${encodeURIComponent(latestTime)}`
+      `/api/todos/${todo.todoId}/snapshot/${latestVersion}`
     );
-    test(snapRes.status === 200, "Snapshot at latest timestamp returns 200");
+    test(snapRes.status === 200, "Snapshot at latest version returns 200");
   }
 
-  // Test snapshot before first version
-  const beforeTime = new Date(
-    new Date(history[0].createdAt).getTime() - 1000
-  ).toISOString();
+  // Test snapshot for non-existing version
   const beforeRes = await makeRequest(
     "GET",
-    `/api/todos/${todo.todoId}/snapshot?time=${encodeURIComponent(beforeTime)}`
+    `/api/todos/${todo.todoId}/snapshot/999999`
   );
-  test(beforeRes.status === 404, "Snapshot before v1 returns 404");
+  test(beforeRes.status === 404, "Snapshot for missing version returns 404");
 
-  // Test invalid timestamp
+  // Test invalid version parameter
   const invalidRes = await makeRequest(
     "GET",
-    `/api/todos/${todo.todoId}/snapshot?time=invalid`
+    `/api/todos/${todo.todoId}/snapshot/invalid`
   );
-  test(invalidRes.status === 400, "Invalid timestamp returns 400");
+  test(invalidRes.status === 400, "Invalid version returns 400");
 }
 
 async function testPhase5_EdgeCases() {
@@ -280,7 +287,7 @@ async function testPhase5_EdgeCases() {
     content: "Test",
   });
   if (todo1.status === 201) {
-    const updateRes = await makeRequest("PUT", `/api/todos/${todo1.body.todoId}`, {});
+    const updateRes = await makeRequest("PUT", `/api/todos/${todo1.data.todoId}`, {});
     test(updateRes.status === 400, "Update with empty payload returns 400");
   }
 
@@ -298,20 +305,20 @@ async function testPhase5_EdgeCases() {
   if (todo2.status === 201) {
     const deleteRes = await makeRequest(
       "DELETE",
-      `/api/todos/${todo2.body.todoId}`,
+      `/api/todos/${todo2.data.todoId}`,
       null
     );
     test(deleteRes.status === 200, "Delete existing todo returns 200");
 
     // Verify deleted todo not in list
     const getRes = await makeRequest("GET", "/api/todos");
-    const found = getRes.body.find((t) => t.todoId === todo2.body.todoId);
+    const found = getRes.data.find((t) => t.todoId === todo2.data.todoId);
     test(!found, "Deleted todo not in GET /api/todos");
 
     // Verify history still accessible
     const histRes = await makeRequest(
       "GET",
-      `/api/todos/${todo2.body.todoId}/history`
+      `/api/todos/${todo2.data.todoId}/history`
     );
     test(
       histRes.status === 200,
@@ -319,7 +326,7 @@ async function testPhase5_EdgeCases() {
     );
 
     // Verify deleted version exists
-    const deletedVersion = histRes.body.find((h) => h.isDeleted === true);
+    const deletedVersion = histRes.data.find((h) => h.isDeleted === true);
     test(
       deletedVersion !== undefined,
       "Deleted version marked with isDeleted=true"
@@ -330,7 +337,7 @@ async function testPhase5_EdgeCases() {
   if (todo2.status === 201) {
     const secondDeleteRes = await makeRequest(
       "DELETE",
-      `/api/todos/${todo2.body.todoId}`,
+      `/api/todos/${todo2.data.todoId}`,
       null
     );
     test(
@@ -366,8 +373,8 @@ async function testPhase6_StressTest() {
   });
 
   if (res.status === 201) {
-    const todoId = res.body.todoId;
-    test(res.body.version === 1, "Stress test todo created at v1");
+    const todoId = res.data.todoId;
+    test(res.data.version === 1, "Stress test todo created at v1");
 
     // Create 20 versions
     let currentVersion = 1;
@@ -377,7 +384,7 @@ async function testPhase6_StressTest() {
       });
 
       if (updateRes.status === 200) {
-        currentVersion = updateRes.body.data.version;
+        currentVersion = updateRes.data.version;
       } else if (updateRes.status === 409) {
         log(`    Conflict on update ${i} (expected in stress), retrying...`, "yellow");
       }
@@ -392,21 +399,21 @@ async function testPhase6_StressTest() {
 
     if (histRes.status === 200) {
       test(
-        histRes.body.length >= 20,
-        `History contains 20+ versions (actual: ${histRes.body.length})`
+        histRes.data.length >= 20,
+        `History contains 20+ versions (actual: ${histRes.data.length})`
       );
 
       // Check ordering
       let ordered = true;
-      for (let i = 1; i < histRes.body.length; i++) {
-        if (histRes.body[i].version <= histRes.body[i - 1].version) {
+      for (let i = 1; i < histRes.data.length; i++) {
+        if (histRes.data[i].version <= histRes.data[i - 1].version) {
           ordered = false;
         }
       }
       test(ordered, "Versions in history are ordered ascending");
 
       // Check exactly one latest
-      const latestCount = histRes.body.filter((h) => h.isLatest === true)
+      const latestCount = histRes.data.filter((h) => h.isLatest === true)
         .length;
       test(latestCount === 1, "Exactly 1 isLatest=true after stress test");
     }
@@ -422,11 +429,11 @@ async function testPhase7_DataValidation() {
   test(res.status === 200, "GET all todos returns 200");
 
   if (res.status === 200) {
-    log(`  Total active todos in database: ${res.body.length}`, "blue");
+    log(`  Total active todos in database: ${res.data.length}`, "blue");
 
     // Validate each entry
     let validCount = 0;
-    for (const todo of res.body) {
+    for (const todo of res.data) {
       const hasRequiredFields =
         todo.todoId &&
         todo.title &&
@@ -442,16 +449,16 @@ async function testPhase7_DataValidation() {
     }
 
     test(
-      validCount === res.body.length,
+      validCount === res.data.length,
       `All ${validCount} todos have required fields`
     );
 
     // Test that all have isLatest=true
-    const allLatest = res.body.every((t) => t.isLatest === true);
+    const allLatest = res.data.every((t) => t.isLatest === true);
     test(allLatest, "All todos have isLatest=true");
 
     // Test that deleted todos are excluded
-    const hasDeleted = res.body.some((t) => t.isDeleted === true);
+    const hasDeleted = res.data.some((t) => t.isDeleted === true);
     test(!hasDeleted, "No deleted todos in active list");
   }
 }

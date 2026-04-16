@@ -21,6 +21,20 @@ app.get("/", (req, res) => {
   res.send("Server is running 🚀");
 });
 
+app.get("/api/health", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Server is running",
+  });
+});
+
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found",
+  });
+});
+
 // server start
 const PORT = process.env.PORT || 5000;
 
